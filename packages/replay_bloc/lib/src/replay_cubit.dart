@@ -43,8 +43,7 @@ part 'replay_bloc.dart';
 /// * [Cubit] for information about the [ReplayCubit] superclass.
 ///
 /// {@endtemplate}
-abstract class ReplayCubit<State> extends Cubit<State>
-    with ReplayCubitMixin<State> {
+abstract class ReplayCubit<State> extends Cubit<State> with ReplayCubitMixin<State> {
   /// {@macro replay_cubit}
   ReplayCubit(State state, {int? limit}) : super(state) {
     if (limit != null) {
@@ -70,6 +69,7 @@ mixin ReplayCubitMixin<State> on Cubit<State> {
       () => super.emit(state),
       (val) => super.emit(val),
     ));
+
     super.emit(state);
   }
 
@@ -93,4 +93,70 @@ mixin ReplayCubitMixin<State> on Cubit<State> {
   /// This is called at the time the state is being restored.
   /// By default [shouldReplay] always returns `true`.
   bool shouldReplay(State state) => true;
+}
+
+/// TODO - Doc
+mixin ReplayHydratedCubitMixin<State> on Cubit<State> {
+  @override
+  late final _changeStack = _ChangeStack<State>(
+    shouldReplay: shouldReplay,
+    stateFromJson: stateFromJson,
+    stateToJson: stateToJson,
+    emit: _emit,
+  );
+
+  /// Sets the internal `undo`/`redo` size limit.
+  /// By default there is no limit.
+  set limit(int limit) => _changeStack.limit = limit;
+
+  @override
+  void emit(State state, {bool canBeUndone = true}) {
+    if (canBeUndone) {
+      _changeStack.add(_Change<State>(
+        this.state,
+        state,
+        () => super.emit(state),
+        (val) => super.emit(val),
+      ));
+    }
+
+    super.emit(state);
+  }
+
+  void _emit(State state) {
+    emit(state, canBeUndone: false);
+  }
+
+  /// Undo the last change.
+  void undo() => _changeStack.undo();
+
+  /// Redo the previous change.
+  void redo() => _changeStack.redo();
+
+  /// Checks whether the undo/redo stack is empty.
+  bool get canUndo => _changeStack.canUndo;
+
+  /// Checks whether the undo/redo stack is at the current change.
+  bool get canRedo => _changeStack.canRedo;
+
+  /// Clear undo/redo history.
+  void clearHistory() => _changeStack.clear();
+
+  /// Checks whether the given state should be replayed from the undo/redo stack.
+  ///
+  /// This is called at the time the state is being restored.
+  /// By default [shouldReplay] always returns `true`.
+  bool shouldReplay(State state) => true;
+
+  /// TODO - Doc
+  void restoreHistory(Map<String, dynamic> json) => _changeStack.restore(json);
+
+  /// TODO - Doc
+  Map<String, dynamic> historyToJson() => _changeStack.toJson();
+
+  /// TODO - Doc
+  State stateFromJson(Map<String, dynamic> json);
+
+  /// TODO - Doc
+  Map<String, dynamic> stateToJson(State state);
 }
